@@ -56,8 +56,8 @@ kubeadm join 10.1.1.31:6443 --token pn.....na8 \
         --discovery-token-ca-cert-hash sha256:dc4b.....bfcd77a
 ```
 
+## Примечания:
 ---
-Примичания:
 Токен действует 24 часа, создания нового токена:
 ```
 kubeadm token list
@@ -95,8 +95,8 @@ Get manifest:
 curl -fLO https://raw.githubusercontent.com/projectcalico/calico/master/manifests/calico.yaml
 ```
 
----
-Примеания: 
+## Примечания:
+--- 
 По умолчанию CALICO как и другие CNI плагины могу использовать сторонюю сеть для подов проверяйте манулы к плагину
 Найти можно в манифесте:
 ```
@@ -111,7 +111,7 @@ curl -fLO https://raw.githubusercontent.com/projectcalico/calico/master/manifest
 ```
 ---
 
-Применим CALICO:
+### Применим CALICO:
 ```
 kubectl apply -f calico.yaml
 poddisruptionbudget.policy/calico-kube-controllers created
@@ -151,12 +151,12 @@ deployment.apps/calico-kube-controllers created
 ```
 ![image](https://github.com/user-attachments/assets/aae63b52-f66b-45cb-9f8c-8eb8c9dc8544)
 
-Накатим LoadBalancer, возьмем metallb:
+### Накатим LoadBalancer, возьмем metallb:
 ```
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.9/config/manifests/metallb-native.yaml
 ```
 
-Создадим configmap для metallb:
+### Создадим configmap для metallb:
 ```
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
@@ -185,17 +185,77 @@ spec:
 
 volume типа emptyDir создаётся внутри пода и предоставляет общий доступ для всех контейнеров, находящихся в этом поде. Этот подход позволяет контейнерам обмениваться данными через общую файловую систему.
 
-Как работает emptyDir:
-Создание тома:
+## Как работает emptyDir:
+### Создание тома:
+  1. Том создаётся автоматически Kubernetes на хосте в момент запуска пода.
+  2. Он является временным и существует только пока под активен. Если под удаляется или перезапускается, данные в     этом томе теряются.
 
-  Том создаётся автоматически Kubernetes на хосте в момент запуска пода.
-  Он является временным и существует только пока под активен. Если под удаляется или перезапускается, данные в     этом томе теряются.
-Общий доступ:
+### Общий доступ:
+  1. Все контейнеры в поде, которые монтируют этот volume, получают доступ к одной и той же директории на хосте.
+  2. При этом они могут как читать, так и записывать данные в эту директорию, что и позволяет организовать обмен   данными между контейнерами.
 
-  Все контейнеры в поде, которые монтируют этот volume, получают доступ к одной и той же директории на хосте.
-  При этом они могут как читать, так и записывать данные в эту директорию, что и позволяет организовать обмен   данными между контейнерами.
-Изоляция:
+### Изоляция:
+  1. Том доступен только контейнерам в пределах одного пода. Он не может быть использован контейнерами из других   подов.
 
-  Том доступен только контейнерам в пределах одного пода. Он не может быть использован контейнерами из других   подов.
-
+---
 Если нужно сохранить данные на постоянной основе (даже после перезапуска пода), следует использовать другие типы томов, такие как hostPath, PersistentVolume, или облачные хранилища (NFS, Ceph).
+---
+
+## Создан Pod из Deployment содержащий 2 контейнера:
+![image](https://github.com/user-attachments/assets/01bf12bd-2beb-4187-ba0d-7b3f6f2843d0)
+
+### Перейдем в shell:
+![image](https://github.com/user-attachments/assets/885c9579-5a48-4ac2-80b9-05c433af7db1)
+
+## Выберем контейнер:
+### multitool:
+![image](https://github.com/user-attachments/assets/e5511a5c-7765-496e-bc1a-59393b71af81)
+
+### bb:
+![image](https://github.com/user-attachments/assets/a5723c2c-78f0-4ddc-ba52-56df616190a8)
+
+
+# Задача 2
+
+## Задача пробросить логи nodes в pod.
+### Создадим daemonset:
+```
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: multitool-daemonset
+  labels:
+    app: multitool
+spec:
+  selector:
+    matchLabels:
+      app: multitool
+  template:
+    metadata:
+      labels:
+        app: multitool
+    spec:
+      containers:
+      - name: multitool
+        image: praqma/network-multitool
+        command: ["sh", "-c", "tail -f /var/log/syslog"]
+        volumeMounts:
+        - name: syslog
+          mountPath: /var/log
+          readOnly: true
+      volumes:
+      - name: syslog
+        hostPath:
+          path: /var/log
+          type: Directory
+```
+
+## После запуска видим поды на узлах:
+![image](https://github.com/user-attachments/assets/203d2be6-de8a-4ec5-b050-94fa50f4163b)
+
+## Теперь проверим что внутри подов доступны системные логи worker'ов:
+### Worker01:
+![image](https://github.com/user-attachments/assets/b352b378-a8dc-4996-8c44-41adf69bb45e)
+
+### Worker02:
+![image](https://github.com/user-attachments/assets/842254a0-a7e0-4a91-aa63-384b6e849ca8)
