@@ -1,0 +1,15 @@
+---
+- name: Config local
+  hosts: localhost
+
+- name: Install master
+  hosts: masters
+  become: true
+  roles:
+    - kuber
+
+- name: Install agent
+  hosts: workers
+  become: true
+  roles:
+    - worker
